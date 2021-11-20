@@ -9,12 +9,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import jdk.incubator.vector.DoubleVector;
-import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorSpecies;
 
 public class LinearSystemMatrix {
 
     public static final ExecutorService executorService = Executors.newWorkStealingPool(Runtime.getRuntime().availableProcessors() - 1);
+    private static final VectorSpecies<Double> species = DoubleVector.SPECIES_PREFERRED;
 
     private final int mRows;
     private final int mColumns;
@@ -74,20 +74,18 @@ public class LinearSystemMatrix {
     }
 
     public double[] gaussianEliminationSimd() {
-        VectorSpecies<Double> species = DoubleVector.SPECIES_PREFERRED;
         int maxOffset = matrix[0].length - species.length();
 
         for (int curRowIdx = 0; curRowIdx < mRows; curRowIdx++) {
             swapRowsIfNeeded(curRowIdx);
 
-            int currentRowLength = matrix[0].length - curRowIdx;
-            int leftover = currentRowLength % species.length();
+            int adjustedOffset = curRowIdx - curRowIdx % 4;
 
             for (int nxtRowIdx = curRowIdx + 1; nxtRowIdx < matrix.length; nxtRowIdx++) {
                 double alpha = matrix[nxtRowIdx][curRowIdx] / matrix[curRowIdx][curRowIdx];
 
                 // multiply current row on alpha and subtract from next row
-                for (int offset = curRowIdx; offset <= maxOffset; offset += species.length()) {
+                for (int offset = adjustedOffset; offset <= maxOffset; offset += species.length()) {
                     DoubleVector currentRowVector = DoubleVector.fromArray(species, matrix[curRowIdx], offset);
                     DoubleVector nextRowVector = DoubleVector.fromArray(species, matrix[nxtRowIdx], offset);
 
@@ -95,18 +93,6 @@ public class LinearSystemMatrix {
                         .mul(alpha)
                         .sub(nextRowVector)
                         .intoArray(matrix[nxtRowIdx], offset);
-                }
-
-                if (leftover != 0) {
-                    VectorMask<Double> mask = species.indexInRange(0, leftover);
-                    int offset = matrix[curRowIdx].length - mask.trueCount();
-                    DoubleVector currentRowVector = DoubleVector.fromArray(species, matrix[curRowIdx], offset, mask);
-                    DoubleVector nextRowVector = DoubleVector.fromArray(species, matrix[nxtRowIdx], offset, mask);
-
-                    currentRowVector.mul(alpha)
-                        .sub(nextRowVector) // next row
-                        .intoArray(matrix[nxtRowIdx], offset, mask);
-
                 }
             }
         }

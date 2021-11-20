@@ -5,11 +5,12 @@ import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import jdk.incubator.vector.DoubleVector;
 
 public class AppGaussCheck {
 
-    private static final int LINEAR_SYSTEM_SIZE = 1024;
-    private static final int ATTEMPTS = 5;
+    private static final int LINEAR_SYSTEM_SIZE = adjustSize(1024);
+    private static final int ATTEMPTS = 4;
     private static final double[] VARIABLES = generateVariables();
     private static final double[][] MATRIX = generateMatrix(VARIABLES);
 
@@ -72,6 +73,11 @@ public class AppGaussCheck {
             copy[i] = Arrays.copyOf(matrix[i], matrix[i].length);
         }
         return copy;
+    }
+
+    public static int adjustSize(int size) {
+        int vLen = DoubleVector.SPECIES_PREFERRED.length();
+        return  (((size + 1) / vLen) + 1) * vLen - 1;
     }
 
     public static double[] generateVariables() {
